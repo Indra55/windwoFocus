@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WindowFocus</title>
+    <link rel="stylesheet" href="popup.css">
+    <script src="popup.js" defer></script>
+  </head>
+  <body>
+    <header><span class="mark" aria-hidden="true">▶</span><h1>WindowFocus</h1><span id="status">Off</span></header>
+    <p>Let lectures play while you work.</p>
+    <form>
+      <label class="setting"><span><strong>Background playback</strong><small>Keep playing when you switch apps.</small></span><input id="enabled" type="checkbox" role="switch" disabled></label>
+      <label class="setting"><span><strong>Next lecture</strong><small>Continue after the video finishes.</small></span><input id="autoNext" type="checkbox" disabled></label>
+    </form>
+    <p class="note">Works on lecture pages in <strong>Upgrading Apps with Generative AI</strong>. Stops at readings, quizzes, or an unclear next link.</p>
+    <footer id="feedback" role="status">Reload your lecture once after loading this extension.</footer>
+  </body>
+</html>

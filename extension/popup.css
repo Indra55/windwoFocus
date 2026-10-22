@@ -1,0 +1,22 @@
+:root { color-scheme: dark; font: 13px/1.5 system-ui, sans-serif; background: #202322; color: #eff1ef; }
+body { width: 324px; margin: 0; padding: 20px; }
+header { display: flex; gap: 10px; align-items: center; }
+h1 { font-size: 17px; letter-spacing: -.4px; margin: 0; font-weight: 600; }
+.mark { font-size: 14px; color: #b7d1bd; }
+#status { margin-left: auto; color: #a0a9a2; font-size: 11px; }
+#status[data-enabled="true"] { color: #b7d1bd; }
+p { color: #b4bcb6; margin: 12px 0 20px; }
+form { border-top: 1px solid #363c38; border-bottom: 1px solid #363c38; }
+.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 0; cursor: pointer; }
+.setting + .setting { border-top: 1px solid #303632; }
+strong { font-weight: 550; }
+small { display: block; color: #a7b0a9; font-size: 11px; margin-top: 3px; }
+input { width: 17px; height: 17px; accent-color: #b7d1bd; flex-shrink: 0; cursor: pointer; }
+input:focus-visible { outline: 2px solid #b7d1bd; outline-offset: 3px; }
+input[role="switch"] { appearance: none; width: 32px; height: 19px; border-radius: 20px; background: #555d57; position: relative; }
+input[role="switch"]::after { content: ""; position: absolute; width: 13px; height: 13px; border-radius: 50%; background: #eef2ef; top: 3px; left: 3px; }
+input[role="switch"]:checked { background: #54745d; }
+input[role="switch"]:checked::after { left: 16px; }
+input:disabled { opacity: .45; cursor: default; }
+.note { font-size: 11px; margin: 16px 0; }
+footer { color: #919d94; font-size: 10px; }
