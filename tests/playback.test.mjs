@@ -36,6 +36,9 @@ class Video extends Target {
   currentTime = 0;
   playbackRate = 1;
   blocked = false;
+  getBoundingClientRect() {
+    return { left: 100, top: 100, right: 900, bottom: 600, width: 800, height: 500 };
+  }
   play() {
     this.plays++;
     if (this.blocked) return Promise.reject(new Error("NotAllowedError"));
@@ -61,6 +64,22 @@ function anchor(path, label = "Next lecture", options = {}) {
   };
 }
 
+function startCard({ type = "Video", inside = true, disabled = false, hidden = false, href = null, click } = {}) {
+  const card = { textContent: `${type} (6 min) Source Code Repositories Start`, contains: () => false, parentElement: null };
+  return {
+    parentElement: card,
+    textContent: "Start",
+    disabled,
+    clicks: 0,
+    getAttribute(name) { return name === "href" ? href : null; },
+    hasAttribute(name) { return name === "href" && href !== null; },
+    getClientRects() { return hidden ? [] : [{}]; },
+    getBoundingClientRect() { return inside ? { left: 400, right: 550, top: 300, bottom: 340 } : { left: 0, right: 80, top: 300, bottom: 340 }; },
+    closest() { return null; },
+    click() { this.clicks++; click?.(); },
+  };
+}
+
 function page({ path = `${course}lecture/one`, storage = new Map(), video = new Video() } = {}) {
   const window = new Target();
   const timers = new Map();
@@ -70,12 +89,17 @@ function page({ path = `${course}lecture/one`, storage = new Map(), video = new 
   class Document extends Target {
     videos = [video];
     anchors = [];
+    controls = [];
     get hidden() { return true; }
     get visibilityState() { return "hidden"; }
     get webkitHidden() { return true; }
     hasFocus() { return false; }
     body = { append(element) { notices.push(element); } };
-    querySelectorAll(selector) { return selector === "video" ? this.videos : this.anchors; }
+    querySelectorAll(selector) {
+      if (selector === "video") return this.videos;
+      if (selector === "a[href]") return this.anchors;
+      return [...this.controls, ...this.anchors];
+    }
     createElement() {
       return Object.assign(new Target(), {
         style: {}, setAttribute() {}, remove() { this.removed = true; },
@@ -96,16 +120,24 @@ function page({ path = `${course}lecture/one`, storage = new Map(), video = new 
     setTimeout: (callback) => { timers.set(++timerId, callback); return timerId; },
     clearTimeout: (id) => timers.delete(id),
   }, { filename: "playback.js" });
+  function flush() {
+    const callbacks = [...timers.values()];
+    timers.clear();
+    for (const callback of callbacks) callback();
+  }
   return {
     window, document, location, video, notices, storage, timers,
     mutate: () => observe(),
     settings: (value = {}) => window.dispatchEvent(new Event("windowfocus:settings", {
       detail: JSON.stringify({ enabled: true, autoNext: true, ...value }),
     })),
-    flush: () => {
-      const callbacks = [...timers.values()];
-      timers.clear();
-      for (const callback of callbacks) callback();
+    flush,
+    flushAll: () => {
+      let count = 0;
+      while (timers.size) {
+        assert.ok(count++ < 40, "navigation retries must be bounded");
+        flush();
+      }
     },
   };
 }
@@ -219,9 +251,9 @@ for (const [name, make] of rejected) {
     const next = make();
     p.document.anchors = [next];
     p.video.finish();
-    p.flush();
+    p.flushAll();
     assert.equal(next.clicks, 0);
-    assert.match(p.notices.at(-1).textContent, /No clear next-lecture link/);
+    assert.match(p.notices.at(-1).textContent, /No next-video control/);
   });
 }
 
@@ -317,6 +349,111 @@ test("expired intent does not start a video", () => {
     path: `${course}lecture/two`, source: "previous.mp4", expires: Date.now() - 1,
   })]]);
   const p = page({ path: `${course}lecture/two`, storage });
+  p.settings();
+  assert.equal(p.video.plays, 0);
+  assert.equal(storage.size, 0);
+});
+
+test("clicks the player's Video preview Start button without a Next link", () => {
+  const p = page();
+  p.settings();
+  const start = startCard({ click: () => { p.location.pathname = `${course}lecture/two`; } });
+  p.document.controls = [start];
+  p.video.finish();
+  p.flush();
+  assert.equal(start.clicks, 1);
+  assert.equal(p.video.plays, 0);
+  p.mutate();
+  assert.equal(p.video.plays, 0, "the finished video must not restart");
+  const next = new Video();
+  next.currentSrc = "https://media.invalid/lecture-2.mp4";
+  p.document.videos = [next];
+  p.mutate();
+  p.mutate();
+  assert.equal(next.plays, 1);
+});
+
+test("waits for a delayed preview instead of reporting failure immediately", () => {
+  const p = page();
+  p.settings();
+  p.video.finish();
+  p.flush();
+  assert.equal(p.notices.length, 0);
+  assert.equal(p.timers.size, 1);
+  const start = startCard();
+  p.document.controls = [start];
+  p.flushAll();
+  assert.equal(start.clicks, 1);
+  assert.equal(p.timers.size, 0);
+});
+
+for (const [name, options] of [
+  ["reading preview", { type: "Reading" }],
+  ["assignment preview", { type: "Assignment" }],
+  ["video card outside the player", { inside: false }],
+  ["disabled Start button", { disabled: true }],
+  ["hidden Start button", { hidden: true }],
+  ["external Start link", { href: "https://example.com/learn/upgrading-apps-generative-ai/lecture/two" }],
+  ["non-video Start link", { href: `${course}quiz/test` }],
+]) {
+  test(`does not activate a ${name}`, () => {
+    const p = page();
+    p.settings();
+    const start = startCard(options);
+    p.document.controls = [start];
+    p.video.finish();
+    p.flushAll();
+    assert.equal(start.clicks, 0);
+    assert.match(p.notices.at(-1).textContent, /No next-video control/);
+  });
+}
+
+test("a disabled preview may become usable during the bounded wait", () => {
+  const p = page();
+  p.settings();
+  const start = startCard({ disabled: true });
+  p.document.controls = [start];
+  p.video.finish();
+  p.flush();
+  assert.equal(start.clicks, 0);
+  start.disabled = false;
+  p.flushAll();
+  assert.equal(start.clicks, 1);
+});
+
+test("disabling the extension cancels a pending preview retry", () => {
+  const p = page();
+  p.settings();
+  p.video.finish();
+  p.flush();
+  const start = startCard();
+  p.document.controls = [start];
+  p.settings({ enabled: false });
+  p.flushAll();
+  assert.equal(start.clicks, 0);
+  assert.equal(p.storage.size, 0);
+});
+
+test("button navigation survives full-page loading and waits for new media", () => {
+  const p = page();
+  p.settings();
+  p.document.controls = [startCard()];
+  p.video.finish();
+  p.flush();
+  const video = new Video();
+  video.currentSrc = "https://media.invalid/lecture-2.mp4";
+  const next = page({ path: `${course}lecture/two`, storage: p.storage, video });
+  assert.equal(video.plays, 0);
+  next.settings();
+  assert.equal(video.plays, 1);
+  assert.equal(p.storage.size, 0);
+});
+
+test("button navigation does not start media on a non-video route", () => {
+  const storage = new Map([["windowfocus:next-lecture", JSON.stringify({
+    path: null, from: `${course}lecture/one`, source: "previous.mp4", expires: Date.now() + 20000,
+  })]]);
+  const p = page({ path: `${course}quiz/test`, storage });
   p.settings();
   assert.equal(p.video.plays, 0);
   assert.equal(storage.size, 0);

@@ -18,8 +18,8 @@ The extension starts off. Settings update open course pages without a reload aft
 
 - Overrides page focus/visibility checks on lecture routes while enabled, and blocks window/document focus-loss events. Form controls retain their own focus events.
 - Preserves manual pause, playback speed, and seeking behavior.
-- Waits for the browser's video-ended event, gives Coursera autoplay 1.5 seconds to navigate, then follows a visible link labeled “Next” only if its URL identifies another lecture in this course.
-- Stops when no clear next-lecture link is available. Does not click quizzes, readings, or generic buttons with an unknown destination.
+- Waits for playback to end and gives native autoplay 1.5 seconds to navigate. Then recognizes either a visible next-video link or the player's **Video (duration)** preview card with its **Start** action.
+- Waits up to 12 additional seconds for a delayed or disabled preview to become usable. Start actions are accepted only on video preview cards displayed within the finished video's bounds. Generic Start buttons and non-video cards are ignored.
 - Attempts to start the next lecture. If browser autoplay policy prevents this, displays a message asking you to click Play.
 - Uses only the `storage` permission. No cookies API, external services, analytics, payments, quiz answers, or course-completion API calls. Coursera itself continues its normal network requests.
 
@@ -31,9 +31,9 @@ Run `node tests/playback.test.mjs` and `node tests/bridge.test.mjs` for behavior
 
 An isolated headless Brave launch was attempted, but this environment denies socket operations required during browser startup (`shutdown: Operation not permitted`). Browser loading and real window switching are therefore unverified here.
 
-Actual logged-in Coursera DOM, platform progress, and four-lecture playback must still be verified in your own tab. The next-link selector is conservative; buttons without a lecture URL, embedded cross-origin players, or a differently localized interface may need an adjustment.
+Actual logged-in DOM, platform progress, and consecutive-video playback must still be verified in your own tab. The preview-card handling follows the supplied screenshot; exact live markup, embedded cross-origin players, and differently localized controls remain unverified.
 
-- [x] 27 simulated behavior tests pass, including settings startup/failure, manual pause, focus controls, and navigation boundaries.
+- [x] Simulated behavior tests cover settings startup/failure, manual pause, focus controls, navigation boundaries, delayed preview cards, and Start-button navigation.
 - [x] JavaScript syntax and manifest resource references checked.
 - [ ] Load into Brave and check that switching to another app leaves the lecture playing.
 - [ ] Confirm manual pause and the off switch behave normally in the live player.

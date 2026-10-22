@@ -36,7 +36,7 @@
   }
 
   function saveContinuation(path, source) {
-    const intent = { path, source, expires: Date.now() + 20000 };
+    const intent = { path, from: location.pathname, source, expires: Date.now() + 20000 };
     pendingPlay = intent;
     try { sessionStorage.setItem(continuationKey, JSON.stringify(intent)); } catch {}
   }
@@ -53,7 +53,11 @@
       clearContinuation();
       return;
     }
-    if (location.pathname !== intent.path || video.readyState === 0 ||
+    if (!isLecture()) {
+      clearContinuation();
+      return;
+    }
+    if ((intent.path ? location.pathname !== intent.path : location.pathname === intent.from) || video.readyState === 0 ||
         video.ended || video.currentSrc === intent.source) return;
     clearContinuation();
     video.play().catch(() => message("Your browser blocked autoplay. Click Play to continue."));
@@ -82,16 +86,51 @@
     }, true);
   }
 
+  function usable(element) {
+    return element.getClientRects().length > 0 && !element.disabled &&
+      element.getAttribute("aria-disabled") !== "true" &&
+      !element.closest('[hidden], [inert], [aria-hidden="true"]');
+  }
+
+  function nextVideoCard(video) {
+    const frame = video.getBoundingClientRect();
+    if (frame.width <= 0 || frame.height <= 0) return null;
+    for (const control of document.querySelectorAll('button, a[href], [role="button"]')) {
+      if (!usable(control) || control.closest("form, [role=\"dialog\"]")) continue;
+      const labels = [control.getAttribute("aria-label"), control.textContent].filter(Boolean);
+      if (!labels.some((label) => /^start(?:\s+(?:video|learning))?$/i.test(label.replace(/\s+/g, " ").trim()))) continue;
+      const rect = control.getBoundingClientRect();
+      const x = (rect.left + rect.right) / 2;
+      const y = (rect.top + rect.bottom) / 2;
+      if (x < frame.left || x > frame.right || y < frame.top || y > frame.bottom) continue;
+
+      let card = control.parentElement;
+      for (let depth = 0; card && depth < 5; depth++, card = card.parentElement) {
+        if (card === document.body || card.contains(video)) break;
+        const text = card.textContent.replace(/\s+/g, " ").trim();
+        if (text.length > 600) break;
+        if (!/^video\s*\(\s*\d/i.test(text)) continue;
+
+        if (control.hasAttribute("href")) {
+          const url = new URL(control.getAttribute("href"), location.href);
+          if (url.origin !== location.origin || !isLecture(url.pathname) || url.pathname === location.pathname) break;
+          return { control, path: url.pathname };
+        }
+        return { control, path: null };
+      }
+    }
+    return null;
+  }
+
   function nextLectureLink() {
     for (const anchor of document.querySelectorAll("a[href]")) {
       const labels = [anchor.getAttribute("aria-label"), anchor.getAttribute("title"), anchor.textContent]
         .filter(Boolean).map((label) => label.replace(/\s+/g, " ").trim());
       if (!labels.some((label) => /^(?:go to (?:the )?)?next(?:\s+(?:video|lecture|lesson|item))?(?:\s*[:→›»\-].*)?$/i.test(label))) continue;
-      if (!anchor.getClientRects().length || anchor.closest('[hidden], [inert], [aria-hidden="true"]')) continue;
-      if (anchor.getAttribute("aria-disabled") === "true") continue;
+      if (!usable(anchor)) continue;
       const url = new URL(anchor.href, location.href);
       if (url.origin === location.origin && isLecture(url.pathname) && url.pathname !== location.pathname) {
-        return { anchor, path: url.pathname };
+        return { control: anchor, path: url.pathname };
       }
     }
     return null;
@@ -102,18 +141,24 @@
     const finishedPath = location.pathname;
     const finishedSource = video.currentSrc;
     clearTimeout(nextTimer);
-    // Give Coursera's own autoplay a chance to navigate first.
-    nextTimer = setTimeout(() => {
+    // Allow native navigation first, then wait for a delayed end card if needed.
+    const advance = (retries = 0) => {
       if (!active() || !settings.autoNext || location.pathname !== finishedPath ||
           video.currentSrc !== finishedSource || !video.ended || !video.isConnected) return;
-      const next = nextLectureLink();
+      const next = nextVideoCard(video) || nextLectureLink();
       if (!next) {
-        message("Video finished. No clear next-lecture link found; use the course navigation.");
+        if (retries < 24) {
+          nextTimer = setTimeout(() => advance(retries + 1), 500);
+          return;
+        }
+        message("Playback finished. No next-video control appeared; use the page navigation.");
         return;
       }
       saveContinuation(next.path, finishedSource);
-      next.anchor.click();
-    }, 1500);
+      if (notice) { notice.remove(); notice = null; }
+      next.control.click();
+    };
+    nextTimer = setTimeout(() => advance(), 1500);
   }
 
   function watchVideos() {
