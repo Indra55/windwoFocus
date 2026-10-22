@@ -1,5 +1,4 @@
 (() => {
-  const coursePath = "/learn/upgrading-apps-generative-ai/";
   const continuationKey = "windowfocus:next-lecture";
   const seen = new WeakSet();
   let settings = { enabled: false, autoNext: false };
@@ -8,7 +7,9 @@
   let pendingPlay = null;
   let notice;
 
-  const isLecture = (path = location.pathname) => path.startsWith(`${coursePath}lecture/`);
+  const coursePath = (path = location.pathname) => path.match(/^\/learn\/[^/]+\//)?.[0] || null;
+  const isLecture = (path = location.pathname) => /^\/learn\/[^/]+\/lecture\/[^/]+(?:\/|$)/.test(path);
+  const sameCourseLecture = (path) => isLecture(path) && coursePath(path) === coursePath();
   const active = () => settings.enabled && isLecture();
 
   function message(text) {
@@ -53,7 +54,7 @@
       clearContinuation();
       return;
     }
-    if (!isLecture()) {
+    if (!isLecture() || coursePath(intent.from || intent.path || "") !== coursePath()) {
       clearContinuation();
       return;
     }
@@ -113,7 +114,7 @@
 
         if (control.hasAttribute("href")) {
           const url = new URL(control.getAttribute("href"), location.href);
-          if (url.origin !== location.origin || !isLecture(url.pathname) || url.pathname === location.pathname) break;
+          if (url.origin !== location.origin || !sameCourseLecture(url.pathname) || url.pathname === location.pathname) break;
           return { control, path: url.pathname };
         }
         return { control, path: null };
@@ -129,7 +130,7 @@
       if (!labels.some((label) => /^(?:go to (?:the )?)?next(?:\s+(?:video|lecture|lesson|item))?(?:\s*[:→›»\-].*)?$/i.test(label))) continue;
       if (!usable(anchor)) continue;
       const url = new URL(anchor.href, location.href);
-      if (url.origin === location.origin && isLecture(url.pathname) && url.pathname !== location.pathname) {
+      if (url.origin === location.origin && sameCourseLecture(url.pathname) && url.pathname !== location.pathname) {
         return { control: anchor, path: url.pathname };
       }
     }

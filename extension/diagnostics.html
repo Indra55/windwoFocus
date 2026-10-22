@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WindowFocus playback check</title>
+    <link rel="stylesheet" href="diagnostics.css">
+    <script src="diagnostics.js" type="module"></script>
+  </head>
+  <body>
+    <h1>Playback check</h1>
+    <p>Record a normal playback session to inspect its progress signals. The recorder sends no requests.</p>
+    <div class="controls">
+      <button id="record">Record</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="existing">Load Network log</button>
+      <label>Result <select id="outcome"><option value="not-checked">Not checked yet</option><option value="check-visible">Completion check appeared</option><option value="check-missing">Completion check is missing</option></select></label>
+      <button id="select">Select report</button>
+    </div>
+    <p id="status" role="status">Idle. Recording starts only when you click Record on a configured video page.</p>
+    <textarea id="report" readonly aria-label="Sanitized playback report" spellcheck="false"></textarea>
+    <p class="note">Includes endpoint names, HTTP statuses, filtered body structure, and numeric/boolean progress values or ranges. Saved-progress GET responses are filtered into the response field when DevTools retains their content. Excludes headers, cookies, query parameters, identifiers, and raw request or response bodies. Existing Network logs may contain requests from earlier pages, and multiple saved values are not matched to individual videos. The report stays in memory until this panel closes.</p>
+    <section>
+      <h2>Experimental end position</h2>
+      <p>Test one saved-position update for the current video. A successful request does not confirm completion; check the site's green tick after refreshing.</p>
+      <button id="prepare">Prepare test</button>
+      <button id="run" disabled>Run once</button>
+      <p id="experiment-status" role="status">Idle. No updates are sent until you prepare a test and click Run once.</p>
+      <p class="note">The native request's identity and required session headers stay in this panel's memory and are excluded from the report.</p>
+    </section>
+    <script src="experiment.js" type="module"></script>
+  </body>
+</html>

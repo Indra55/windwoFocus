@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 const source = await readFile(new URL("../extension/playback.js", import.meta.url), "utf8");
+const bridgeSource = await readFile(new URL("../extension/bridge.js", import.meta.url), "utf8");
 const course = "/learn/upgrading-apps-generative-ai/";
 const origin = "https://www.coursera.org";
 
@@ -127,6 +128,7 @@ function page({ path = `${course}lecture/one`, storage = new Map(), video = new 
   }
   return {
     window, document, location, video, notices, storage, timers,
+    connect: chrome => vm.runInNewContext(bridgeSource, { window, CustomEvent: Event, chrome }),
     mutate: () => observe(),
     settings: (value = {}) => window.dispatchEvent(new Event("windowfocus:settings", {
       detail: JSON.stringify({ enabled: true, autoNext: true, ...value }),
@@ -454,6 +456,104 @@ test("button navigation does not start media on a non-video route", () => {
     path: null, from: `${course}lecture/one`, source: "previous.mp4", expires: Date.now() + 20000,
   })]]);
   const p = page({ path: `${course}quiz/test`, storage });
+  p.settings();
+  assert.equal(p.video.plays, 0);
+  assert.equal(storage.size, 0);
+});
+
+test("different course windows keep independent playback with one shared enable setting", async () => {
+  const pages = ["course-one", "course-two", "course-three"].map(slug => page({ path: `/learn/${slug}/lecture/item/title` }));
+  const saved = { enabled: true, autoNext: true };
+  const listeners = [];
+  const chrome = { storage: {
+    local: { async get(defaults) { return { ...defaults, ...saved }; } },
+    onChanged: { addListener(callback) { listeners.push(callback); } },
+  } };
+  for (const p of pages) {
+    p.connect(chrome);
+    p.window.addEventListener("blur", () => p.video.pause());
+    p.window.addEventListener("visibilitychange", () => p.video.pause());
+    await p.video.play();
+  }
+  await new Promise(setImmediate);
+  for (const p of pages) {
+    p.window.dispatchEvent({ type: "blur" });
+    p.window.dispatchEvent({ type: "visibilitychange", target: p.document });
+    assert.equal(p.document.hasFocus(), true);
+    assert.equal(p.document.hidden, false);
+    assert.equal(p.video.paused, false);
+    assert.equal(p.video.pauses, 0);
+  }
+  pages[0].video.pause();
+  pages[0].mutate();
+  assert.equal(pages[0].video.paused, true);
+  assert.equal(pages[1].video.paused, false);
+  assert.equal(pages[2].video.paused, false);
+
+  saved.enabled = false;
+  for (const notify of listeners) notify({ enabled: { newValue: false } }, "local");
+  await new Promise(setImmediate);
+  for (const p of pages) {
+    assert.equal(p.document.hasFocus(), false);
+    assert.equal(p.document.hidden, true);
+    p.window.dispatchEvent({ type: "blur" });
+    assert.equal(p.video.paused, true);
+  }
+});
+
+test("focus protection follows course changes within a tab and stops outside lecture routes", () => {
+  const p = page({ path: "/learn/course-two/home/module/1" });
+  p.settings();
+  assert.equal(p.document.hasFocus(), false);
+  p.location.pathname = "/learn/course-two/lecture/item/title";
+  assert.equal(p.document.hasFocus(), true);
+  p.location.pathname = "/learn/course-three/lecture/other/title";
+  assert.equal(p.document.hidden, false);
+  for (const path of ["/learn/course-three/quiz/test", "/learn/course-three/supplement/test", "/learn/course-three/lecture/"]) {
+    p.location.pathname = path;
+    assert.equal(p.document.hidden, true);
+    assert.equal(p.document.hasFocus(), false);
+  }
+});
+
+test("each window advances only its own course and does not affect another playing window", async () => {
+  const first = page({ path: "/learn/course-one/lecture/one" });
+  const second = page({ path: "/learn/course-two/lecture/one" });
+  for (const p of [first, second]) { p.settings(); await p.video.play(); }
+  const next = anchor("/learn/course-one/lecture/two");
+  first.document.anchors = [next];
+  first.video.finish();
+  first.flush();
+  assert.equal(next.clicks, 1);
+  assert.equal(second.video.paused, false);
+  assert.equal(second.video.plays, 1);
+  assert.equal(second.timers.size, 0);
+  assert.equal(second.storage.size, 0);
+
+  const wrongCourse = anchor("/learn/course-one/lecture/three");
+  const ownCourse = anchor("/learn/course-two/lecture/two");
+  second.document.anchors = [wrongCourse, ownCourse];
+  second.video.finish();
+  second.flush();
+  assert.equal(wrongCourse.clicks, 0);
+  assert.equal(ownCourse.clicks, 1);
+});
+
+test("Start cards cannot navigate to another course", () => {
+  const p = page({ path: "/learn/course-two/lecture/one" });
+  p.settings();
+  const start = startCard({ href: "/learn/course-three/lecture/two" });
+  p.document.controls = [start];
+  p.video.finish();
+  p.flushAll();
+  assert.equal(start.clicks, 0);
+});
+
+test("a pending button continuation cannot resume media after changing courses", () => {
+  const storage = new Map([["windowfocus:next-lecture", JSON.stringify({
+    path: null, from: "/learn/course-one/lecture/one", source: "previous.mp4", expires: Date.now() + 20000,
+  })]]);
+  const p = page({ path: "/learn/course-two/lecture/two", storage });
   p.settings();
   assert.equal(p.video.plays, 0);
   assert.equal(storage.size, 0);

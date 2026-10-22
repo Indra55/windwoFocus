@@ -1,0 +1,9 @@
+:root { color-scheme: light dark; font: 13px/1.5 system-ui, sans-serif; }
+body { margin: 20px; max-width: 1000px; }
+h1 { font-size: 18px; margin: 0; }
+p { max-width: 780px; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+button, select { font: inherit; padding: 5px 10px; }
+label { display: flex; gap: 6px; align-items: center; }
+textarea { box-sizing: border-box; width: 100%; min-height: 300px; height: 50vh; padding: 12px; font: 12px/1.5 monospace; }
+.note { opacity: .75; font-size: 11px; }

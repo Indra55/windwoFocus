@@ -1,21 +1,22 @@
 {
   "manifest_version": 3,
   "name": "WindowFocus",
-  "version": "0.1.1",
+  "version": "0.1.6",
   "minimum_chrome_version": "111",
   "description": "Background lecture playback and optional next-lecture navigation for your Coursera course.",
   "permissions": ["storage"],
+  "devtools_page": "devtools.html",
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "WindowFocus", "default_popup": "popup.html" },
   "content_scripts": [
     {
-      "matches": ["https://www.coursera.org/learn/upgrading-apps-generative-ai/*"],
+      "matches": ["https://www.coursera.org/learn/*"],
       "js": ["playback.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["https://www.coursera.org/learn/upgrading-apps-generative-ai/*"],
+      "matches": ["https://www.coursera.org/learn/*"],
       "js": ["bridge.js"],
       "run_at": "document_start"
     }

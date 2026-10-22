@@ -8,7 +8,7 @@ function render(settings) {
   autoNext.checked = settings.autoNext;
   enabled.disabled = false;
   autoNext.disabled = !settings.enabled;
-  status.textContent = settings.enabled ? "On for your course" : "Off";
+  status.textContent = settings.enabled ? "On for all course windows" : "Off";
   status.dataset.enabled = String(settings.enabled);
 }
 
@@ -26,7 +26,7 @@ for (const input of [enabled, autoNext]) {
     try {
       await chrome.storage.local.set({ enabled: enabled.checked, autoNext: autoNext.checked });
       await load();
-      feedback.textContent = enabled.checked ? "On. You can still pause videos yourself." : "Off. Normal page behavior restored.";
+      feedback.textContent = enabled.checked ? "On in all course windows. You can still pause videos yourself." : "Off. Normal page behavior restored.";
     } catch {
       await load();
       feedback.textContent = "Could not save settings. Try again.";
